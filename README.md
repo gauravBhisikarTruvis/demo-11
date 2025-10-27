@@ -69,6 +69,24 @@ def excel_to_json_converter(excel_file_path, output_json_file_path, default_data
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
+def debug_excel_headers(excel_file_path):
+    try:
+        # Read the Excel file into a pandas DataFrame
+        df = pd.read_excel(excel_file_path, sheet_name=0)
+
+        # PRINT THE HEADERS EXACTLY AS PANDAS READS THEM
+        print("--- DEBUG: ACTUAL COLUMN HEADERS READ BY PANDAS ---")
+        for col in df.columns:
+            # Print with quotes to reveal spaces or hidden characters
+            print(f"'{col}'")
+        print("--------------------------------------------------")
+
+    except FileNotFoundError:
+        print(f"Error: The Excel file '{excel_file_path}' was not found.")
+    except Exception as e:
+        print(f"An unexpected error occurred during debug: {e}")
+        
+
 # --- Configuration ---
 # Replace with the actual path to your Excel file
 input_excel_file = 'your_excel_file.xlsx'
