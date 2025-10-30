@@ -1,111 +1,36 @@
-import pandas as pd
-import json
+class ColumnConfigUpdate(BaseModel):
+    # Required keys to identify the specific column record to update (used in the WHERE clause)
+    data_source_id: str = Field(..., description="The ID of the data source.")
+    table_name: str = Field(..., description="The name of the table to which the column belongs.")
+    column_name: str = Field(..., description="The specific name of the column to update.")
 
-def excel_to_json_converter(excel_file_path, output_json_file_path, default_data_source_id=None, default_data_namespace="techsteer"):
-    """
-    Converts an Excel file into a JSON file, where each row in the Excel
-    sheet becomes a JSON object in a list.
+    # Optional fields for actual update (used in the SET clause)
+    data_namespace: Optional[str] = None
+    description: Optional[str] = None
+    data_type: Optional[str] = None
+    is_filterable: Optional[bool] = None
+    is_aggregatable: Optional[bool] = None
+    sample_values: Optional[List[Any]] = None
+    # Assuming sample_values is a list that should be stored as JSONB/TEXT
 
-    Args:
-        excel_file_path (str): The path to the input Excel file.
-        output_json_file_path (str): The path where the output JSON file will be saved.
-        default_data_source_id (str, optional): A default string to use for 'data_source_id'
-                                                if not derived from Excel. If None, it uses
-                                                the 'Dataset ID' column.
-        default_data_namespace (str): The default string to use for 'data_namespace'.
-                                     Defaults to "techsteer".
-    """
-    try:
-        # Read the Excel file into a pandas DataFrame
-        # Assumes the first sheet is the one to be processed
-        df = pd.read_excel(excel_file_path, sheet_name=0)
+# Schema for updating a single table's configuration
+class TableConfigUpdate(BaseModel):
+    # Required keys to identify the specific table record to update (used in the WHERE clause)
+    data_source_id: str = Field(..., description="The ID of the data source.")
+    table_name: str = Field(..., description="The specific name of the table to update.")
 
-        # Rename columns for easier access and mapping
-        df.rename(columns={
-            'Dataset ID': 'excel_dataset_id',
-            'Table Name': 'table_name_details',
-            'Column Name': 'column_name_details',
-            'Description': 'description',
-            'Data Type': 'data_type'
-        }, inplace=True)
-
-        # List to hold all the JSON objects
-        json_objects = []
-
-        # Iterate over each row in the DataFrame
-        for index, row in df.iterrows():
-            # Clean up potential NaN values for string fields
-            description = str(row['description']).strip() if pd.notna(row['description']) else ""
-            data_type = str(row['data_type']).strip() if pd.notna(row['data_type']) else ""
-
-            # Determine data_source_id - use default if provided, else use excel_dataset_id
-            data_source_id_value = default_data_source_id if default_data_source_id is not None else str(row['excel_dataset_id']).strip()
-
-            # Create the JSON object for the current row
-            json_obj = {
-                "data_source_id": data_source_id_value,
-                "data_namespace": default_data_namespace,
-                "table_name_details": str(row['table_name_details']).strip() if pd.notna(row['table_name_details']) else "",
-                "column_name_details": str(row['column_name_details']).strip() if pd.notna(row['column_name_details']) else "",
-                "description": description,
-                "data_type": data_type,
-                "is_filterable": False,
-                "is_aggregatable": False,
-                "sample_values": [],  # Empty array as requested
-                "related_business_terms": [] # Empty array as requested
-            }
-            json_objects.append(json_obj)
-
-        # Write the list of JSON objects to a file
-        with open(output_json_file_path, 'w', encoding='utf-8') as f:
-            json.dump(json_objects, f, indent=4, ensure_ascii=False)
-
-        print(f"Successfully converted '{excel_file_path}' to '{output_json_file_path}'")
-
-    except FileNotFoundError:
-        print(f"Error: The Excel file '{excel_file_path}' was not found.")
-    except KeyError as e:
-        print(f"Error: Missing expected column in Excel file. Make sure columns like 'Dataset ID', 'Table Name', 'Column Name', 'Description', 'Data Type' exist. Missing: {e}")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-
-def debug_excel_headers(excel_file_path):
-    try:
-        # Read the Excel file into a pandas DataFrame
-        df = pd.read_excel(excel_file_path, sheet_name=0)
-
-        # PRINT THE HEADERS EXACTLY AS PANDAS READS THEM
-        print("--- DEBUG: ACTUAL COLUMN HEADERS READ BY PANDAS ---")
-        for col in df.columns:
-            # Print with quotes to reveal spaces or hidden characters
-            print(f"'{col}'")
-        print("--------------------------------------------------")
-
-    except FileNotFoundError:
-        print(f"Error: The Excel file '{excel_file_path}' was not found.")
-    except Exception as e:
-        print(f"An unexpected error occurred during debug: {e}")
-        
-
-# --- Configuration ---
-# Replace with the actual path to your Excel file
-input_excel_file = 'your_excel_file.xlsx'
-# Replace with the desired path for your output JSON file
-output_json_file = 'output_data.json'
-
-# --- How to use the converter ---
-
-# Option 1: Use Dataset ID from Excel, hardcode data_namespace
-# excel_to_json_converter(input_excel_file, output_json_file)
-
-# Option 2: Provide a specific data_source_id for all entries (e.g., from your example)
-#           and hardcode data_namespace
-excel_to_json_converter(
-    input_excel_file,
-    output_json_file,
-    default_data_source_id="linen-striker-454116-c9", # Use this specific ID for all
-    default_data_namespace="techsteer" # Use this specific namespace for all
-)
-
-# Option 3: If you want to use the excel's Dataset ID and set a custom data_namespace
-# excel_to_json_converter(input_excel_file, output_json_file, default_data_namespace="your_custom_namespace")
+    # Optional fields for actual update (used in the SET clause)
+    display_name: Optional[str] = None
+    data_namespace: Optional[str] = None
+    description: Optional[str] = None
+    filter_columns: Optional[List[str]] = None
+    aggregate_columns: Optional[List[str]] = None
+    sort_columns: Optional[List[str]] = None
+    key_columns: Optional[List[str]] = None
+    join_tables: Optional[List[str]] = None
+    related_business_terms: Optional[List[str]] = None
+    sample_usage: Optional[str] = None
+    tags: Optional[List[str]] = None
+    # created_at/by and updated_at/by should typically be handled by the database or utility,
+    # but 'updated_by' can be explicitly set if passed.
+    updated_by: Optional[str] = None
