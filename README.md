@@ -109,3 +109,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+# PowerShell
+python .\test.py "context\table_context\DataDictionary_UK.xlsx" -s 0 -o metadata.json
