@@ -28,6 +28,13 @@ def to_list(value):
     return [x.strip() for x in str(value).split(",") if x.strip()]
 
 
+
+
+    # PowerShell
+python .\test.py "context\table_context\DataDictionary_UK.xlsx" -s 0 -o metadata.json
+
+
+
 def nice_name_from_table(table_name: str) -> str:
     """Turn snake_case into Title Case for display_name."""
     if not table_name:
