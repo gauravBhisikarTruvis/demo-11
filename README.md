@@ -47,3 +47,62 @@ def update_table(payload: TableUpdateRequest):
     except Exception as e:
         logger.exception("Update failed")
         raise HTTPException(status_code=500, detail="Update failed")
+
+
+@pg_router.post("/update-column-metadata")
+def update_column(payload: ColumnUpdateRequest):
+    try:
+        # connect
+        db_util = GoogleCloudSqlUtility(payload.market)
+        conn = db_util.get_db_connection()
+
+        if not payload.obj:
+            raise HTTPException(status_code=400, detail="'obj' must contain at least one field")
+
+        # build SET clause + params
+        set_parts = []
+        params: list[Any] = []
+
+        for col, val in payload.obj.items():
+            col_quoted = f'"{col}"'  # simple identifier quoting
+            if isinstance(val, list):
+                # list -> ARRAY[%s, %s, ...]
+                placeholders = ", ".join(["%s"] * len(val))
+                set_parts.append(f"{col_quoted} = ARRAY[{placeholders}]")
+                params.extend(val)
+            else:
+                set_parts.append(f"{col_quoted} = %s")
+                params.append(val)
+
+        # always update timestamp
+        set_parts.append("updated_at = NOW()")
+
+        # final SQL
+        sql_query = f"""
+            UPDATE column_config
+            SET {", ".join(set_parts)}
+            WHERE table_name = %s
+              AND column_name = %s
+            RETURNING *;
+        """
+
+        # WHERE params
+        params.extend([payload.table, payload.column])
+
+        # execute
+        with conn, conn.cursor() as cur:
+            cur.execute(sql_query, params)
+            rows = cur.fetchall()
+            if not rows:
+                raise HTTPException(status_code=404, detail="No row found for given table & column")
+
+            cols = [d[0] for d in cur.description]
+            updated = [dict(zip(cols, r)) for r in rows]
+
+        return {"updated_rows": updated}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Update failed")
+        raise HTTPException(status_code=500, detail="Update failed")
