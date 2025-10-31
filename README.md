@@ -106,3 +106,22 @@ def update_column(payload: ColumnUpdateRequest):
     except Exception as e:
         logger.exception("Update failed")
         raise HTTPException(status_code=500, detail="Update failed")
+
+
+curl -X POST "http://10.98.25.52:8000/update-column-metadata" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "market": "hsbc-12708196-qryrecoeng-dev",
+    "table": "event_store",
+    "column": "event_time",
+    "obj": {
+      "description": "Event timestamp in UTC",
+      "data_type": "timestamptz",
+      "is_filterable": true,
+      "is_aggregatable": false,
+      "sample_values": ["2025-01-01T00:00:00Z", "2025-01-02T08:00:00Z"],
+      "related_business_terms": ["events","time","timestamp"],
+      "updated_by": "gaurav"
+    }
+  }'
+
