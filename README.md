@@ -75,3 +75,13 @@ async def bulk_upload(payload: Metadata):
     finally:
         if cur: cur.close()
         if conn: conn.close()
+
+
+
+
+        SELECT current_user, session_user, current_database();
+
+SELECT schemaname, tablename, tableowner
+FROM pg_tables
+WHERE schemaname = 'public'
+  AND tablename IN ('table_config','column_config','table_context','column_context');
