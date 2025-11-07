@@ -85,3 +85,12 @@ SELECT schemaname, tablename, tableowner
 FROM pg_tables
 WHERE schemaname = 'public'
   AND tablename IN ('table_config','column_config','table_context','column_context');
+
+
+
+
+GRANT USAGE ON SCHEMA public TO postgres;
+
+GRANT SELECT ON TABLE public.table_context TO postgres;
+GRANT SELECT ON TABLE public.column_context TO postgres;
+
