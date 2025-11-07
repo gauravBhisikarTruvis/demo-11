@@ -112,3 +112,4 @@ GRANT SELECT ON TABLES TO postgres;
 """)
 conn.commit()
 
+
