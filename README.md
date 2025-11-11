@@ -1,306 +1,130 @@
-def insert_table_metadata(self, record: dict, table_name: str = "table_config"):
-    table_name_val = record.get("table_name") or record.get("table_name_details")
-    id_key = generate_id_key(
-        record.get("data_source_id"),
-        record.get("data_namespace", ""),
-        table_name_val
-    )
+# TABLE files
+for fn in sorted(os.listdir(TABLE_DIR)):
+    if not fn.endswith(".json"):
+        continue
+    fp = os.path.join(TABLE_DIR, fn)
+    docs = JSONLoader(file_path=fp, jq_schema=".", text_content=False, json_lines=False).load()
 
-    conn = None
-    try:
-        conn = psycopg2.connect(
-            host=self.host, port=self.port,
-            dbname=self.database, user=self.user, password=self.password
-        )
-        cur = conn.cursor()
+    # docs[i].page_content is a JSON string.
+    for doc in docs:
+        parsed = json.loads(doc.page_content)  # typically a LIST of dicts
+        if isinstance(parsed, dict):
+            parsed = [parsed]
 
-        sql_insert = sql.SQL("""
-            INSERT INTO {table} (id_key, data_source_id, table_name)
-            VALUES (%s, %s, %s)
-            ON CONFLICT (id_key) DO UPDATE SET
-                data_source_id = EXCLUDED.data_source_id,
-                table_name     = EXCLUDED.table_name;
-        """).format(table=sql.Identifier(table_name))
+        for rec in parsed:                    # <-- iterate list of dicts
+            rec["data_source_id"] = project_id
+            rec["data_namespace"] = dataset_id
 
-        cur.execute(sql_insert, (id_key, record["data_source_id"], table_name_val))
-        conn.commit()
-    except Exception as e:
-        raise Exception(f"[insert_table_metadata] failed: {e}")
-    finally:
-        if conn:
-            conn.close()
+            insert_table_metadata(rec)        # text first
+            insert_table_context(rec)         # then embedding
 
 
 
 
 
+import psycopg2
+from psycopg2.extras import Json
+from datetime import datetime
 
+def _safe_list(v):
+    return v if isinstance(v, list) else []
 
-def insert_table_context(self, record: dict, table_name: str = "table_context"):
-    table_name_val = record.get("table_name") or record.get("table_name_details")
-    id_key = generate_id_key(
-        record.get("data_source_id"),
-        record.get("data_namespace", ""),
-        table_name_val
-    )
+def _get_table_name(rec):
+    # your JSON uses "table_name_details"; fall back to "table_name"
+    return rec.get("table_name") or rec.get("table_name_details") or ""
 
-    raw_text = self._to_readable_text(record)
-    embedding = self.get_openai_embedding(raw_text)
+def _gen_id_key(rec):
+    # stable id_key: data_source_id~data_namespace^table_name
+    return f"{rec.get('data_source_id','')}~{rec.get('data_namespace','')}^{_get_table_name(rec)}"
 
-    conn = None
-    try:
-        conn = psycopg2.connect(
-            host=self.host, port=self.port,
-            dbname=self.database, user=self.user, password=self.password
-        )
-        cur = conn.cursor()
+def insert_table_metadata(record: dict):
+    table_name_val = _get_table_name(record)
+    id_key = _gen_id_key(record)
 
-        sql_insert = sql.SQL("""
-            INSERT INTO {table} (id_key, embedding, raw_text)
-            VALUES (%s, %s, %s)
-            ON CONFLICT (id_key) DO UPDATE SET
-                embedding = EXCLUDED.embedding,
-                raw_text  = EXCLUDED.raw_text;
-        """).format(table=sql.Identifier(table_name))
+    payload = {
+        "id_key": id_key,
+        "data_source_id": record.get("data_source_id", ""),
+        "table_name": table_name_val,
+        "display_name": record.get("display_name", ""),
+        "data_namespace": record.get("data_namespace", ""),
+        "description": record.get("description", ""),
 
-        cur.execute(sql_insert, (id_key, embedding, raw_text))
-        conn.commit()
-    except Exception as e:
-        raise Exception(f"[insert_table_context] failed: {e}")
-    finally:
-        if conn:
-            conn.close()
+        # arrays (TEXT[])
+        "filter_columns": _safe_list(record.get("filter_columns", [])),
+        "aggregate_columns": _safe_list(record.get("aggregate_columns", [])),
+        "sort_columns": _safe_list(record.get("sort_columns", [])),
+        "key_columns": _safe_list(record.get("key_columns", [])),
+        "related_business_terms": _safe_list(record.get("related_business_terms", [])),
+        "tags": _safe_list(record.get("tags", [])),
 
+        # jsonb
+        "join_tables": record.get("join_tables", []),     # list/dict -> JSONB
+        "sample_usage": record.get("sample_usage", []),   # list of {description, sql}
 
+        # audit
+        "created_by": record.get("created_by", "bulk-upload"),
+        "updated_by": record.get("updated_by", "bulk-upload"),
+    }
 
-
-
-
-def insert_column_metadata(self, record: dict, table_name: str = "column_config"):
-    column_name = record.get("column_name") or record.get("column_name_details")
-
-    id_key = generate_id_key(
-        record.get("data_source_id"),
-        record.get("data_namespace", ""),
-        column_name
-    )
-
-    conn = None
-    try:
-        conn = psycopg2.connect(
-            host=self.host, port=self.port,
-            dbname=self.database, user=self.user, password=self.password
-        )
-        cur = conn.cursor()
-
-        sql_insert = sql.SQL("""
-            INSERT INTO {table} (id_key, data_source_id)
-            VALUES (%s, %s)
-            ON CONFLICT (id_key) DO UPDATE SET
-                data_source_id = EXCLUDED.data_source_id;
-        """).format(table=sql.Identifier(table_name))
-
-        cur.execute(sql_insert, (id_key, record["data_source_id"]))
-        conn.commit()
-    except Exception as e:
-        raise Exception(f"[insert_column_metadata] failed: {e}")
-    finally:
-        if conn:
-            conn.close()
-
-
-
-
-def insert_column_context(self, record: dict, table_name: str = "column_context"):
-    column_name = record.get("column_name") or record.get("column_name_details")
-
-    id_key = generate_id_key(
-        record.get("data_source_id"),
-        record.get("data_namespace", ""),
-        column_name
-    )
-
-    raw_text = self._to_readable_text(record)
-    embedding = self.get_openai_embedding(raw_text)
-
-    conn = None
-    try:
-        conn = psycopg2.connect(
-            host=self.host, port=self.port,
-            dbname=self.database, user=self.user, password=self.password
-        )
-        cur = conn.cursor()
-
-        sql_insert = sql.SQL("""
-            INSERT INTO {table} (id_key, embedding, raw_text)
-            VALUES (%s, %s, %s)
-            ON CONFLICT (id_key) DO UPDATE SET
-                embedding = EXCLUDED.embedding,
-                raw_text  = EXCLUDED.raw_text;
-        """).format(table=sql.Identifier(table_name))
-
-        cur.execute(sql_insert, (id_key, embedding, raw_text))
-        conn.commit()
-    except Exception as e:
-        raise Exception(f"[insert_column_context] failed: {e}")
-    finally:
-        if conn:
-            conn.close()
-
-
-
-
-
-@pg_router.post("/bulk-upload")
-async def bulk_upload(payload: Metadata):
+    sql_insert = """
+    INSERT INTO public.table_config
+    ( id_key, data_source_id, table_name, display_name, data_namespace, description,
+      filter_columns, aggregate_columns, sort_columns, key_columns, join_tables,
+      related_business_terms, sample_usage, tags,
+      created_at, updated_at, created_by, updated_by )
+    VALUES
+    ( %s, %s, %s, %s, %s, %s,
+      %s, %s, %s, %s, %s::jsonb,
+      %s, %s::jsonb, %s,
+      NOW(), NOW(), %s, %s )
+    ON CONFLICT (id_key) DO UPDATE SET
+      data_source_id = EXCLUDED.data_source_id,
+      table_name = EXCLUDED.table_name,
+      display_name = EXCLUDED.display_name,
+      data_namespace = EXCLUDED.data_namespace,
+      description = EXCLUDED.description,
+      filter_columns = EXCLUDED.filter_columns,
+      aggregate_columns = EXCLUDED.aggregate_columns,
+      sort_columns = EXCLUDED.sort_columns,
+      key_columns = EXCLUDED.key_columns,
+      join_tables = EXCLUDED.join_tables,
+      related_business_terms = EXCLUDED.related_business_terms,
+      sample_usage = EXCLUDED.sample_usage,
+      tags = EXCLUDED.tags,
+      updated_at = NOW(),
+      updated_by = EXCLUDED.updated_by;
     """
-    Process order:
-      1) Every file in config/context/table/*.json
-         - insert into table_config (text)
-         - insert into table_context (embedding)
-      2) Every file in config/context/column/*.json
-         - insert into column_config (text)
-         - insert into column_context (embedding)
-    """
-    import os, json, psycopg2
-    from fastapi import HTTPException
-    from langchain_community.document_loaders import JSONLoader
 
-    # ---- config/paths ----
-    try:
-        cfg = load_config(payload.market)
-        project_id = cfg.get("Database", "bigquery_project")
-        dataset_id = cfg.get("Database", "bigquery_dataset")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Config load failed: {e}")
-
-    CONTEXT_BASE = os.path.join("config", "context")
-    TABLE_DIR    = os.path.join(CONTEXT_BASE, "table")
-    COLUMN_DIR   = os.path.join(CONTEXT_BASE, "column")
-
-    # ---- ensure DB objects exist ----
     conn = cur = None
     try:
-        db_util = GoogleCloudSqlUtility(payload.market)
+        db_util = GoogleCloudSqlUtility("<your-market-here>")  # or pass in
         conn = db_util.get_db_connection()
-        cur  = conn.cursor()
-
-        conn.autocommit = True
-        cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-        conn.autocommit = False
-
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS public.table_config (
-              id_key VARCHAR(200) PRIMARY KEY,
-              data_source_id VARCHAR(100) NOT NULL,
-              table_name VARCHAR(100) NOT NULL
-            );
-        """)
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS public.column_config (
-              id_key VARCHAR(200) PRIMARY KEY,
-              data_source_id VARCHAR(100) NOT NULL
-            );
-        """)
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS public.table_context (
-              id_key VARCHAR(255) PRIMARY KEY,
-              embedding vector(1536),
-              raw_text TEXT
-            );
-        """)
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS public.column_context (
-              id_key VARCHAR(255) PRIMARY KEY,
-              embedding vector(1536),
-              raw_text TEXT
-            );
-        """)
+        cur = conn.cursor()
+        cur.execute(
+            sql_insert,
+            (
+                payload["id_key"],
+                payload["data_source_id"],
+                payload["table_name"],
+                payload["display_name"],
+                payload["data_namespace"],
+                payload["description"],
+                payload["filter_columns"],
+                payload["aggregate_columns"],
+                payload["sort_columns"],
+                payload["key_columns"],
+                Json(payload["join_tables"]),
+                payload["related_business_terms"],
+                Json(payload["sample_usage"]),
+                payload["tags"],
+                payload["created_by"],
+                payload["updated_by"],
+            ),
+        )
         conn.commit()
     except Exception as e:
         if conn: conn.rollback()
-        raise HTTPException(status_code=500, detail=f"DDL failed: {e}")
+        raise Exception(f"[insert_table_metadata] failed: {e}")
     finally:
         if cur: cur.close()
         if conn: conn.close()
-
-    # ---- use existing loader for inserts ----
-    loader = PostgresLoader(payload.market)
-
-    # idempotent create via loader if needed
-    try:
-        loader.create_table_config()
-        loader.create_column_config()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Loader create_* failed: {e}")
-
-    # Counters
-    table_cfg_ct = table_ctx_ct = 0
-    col_cfg_ct   = col_ctx_ct   = 0
-
-    # ---- 1) TABLE files: text -> embedding (per doc) ----
-    try:
-        if os.path.isdir(TABLE_DIR):
-            for fn in sorted(os.listdir(TABLE_DIR)):
-                if not fn.endswith(".json"):
-                    continue
-                fp = os.path.join(TABLE_DIR, fn)
-                docs = JSONLoader(
-                    file_path=fp,
-                    jq_schema=".",
-                    text_content=False,
-                    json_lines=False
-                ).load()
-
-                for doc in docs:
-                    record = json.loads(doc.page_content)
-                    record["data_source_id"] = project_id
-                    record["data_namespace"] = dataset_id
-
-                    # text first
-                    loader.insert_table_metadata(record, "table_config")
-                    table_cfg_ct += 1
-                    # then embedding
-                    loader.insert_table_context(record, "table_context")
-                    table_ctx_ct += 1
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Table phase failed: {e}")
-
-    # ---- 2) COLUMN files: text -> embedding (per doc) ----
-    try:
-        if os.path.isdir(COLUMN_DIR):
-            for fn in sorted(os.listdir(COLUMN_DIR)):
-                if not fn.endswith(".json"):
-                    continue
-                fp = os.path.join(COLUMN_DIR, fn)
-                docs = JSONLoader(
-                    file_path=fp,
-                    jq_schema=".",
-                    text_content=False,
-                    json_lines=False
-                ).load()
-
-                for doc in docs:
-                    record = json.loads(doc.page_content)
-                    record["data_source_id"] = project_id
-                    record["data_namespace"] = dataset_id
-
-                    # text first
-                    loader.insert_column_metadata(record, "column_config")
-                    col_cfg_ct += 1
-                    # then embedding
-                    loader.insert_column_context(record, "column_context")
-                    col_ctx_ct += 1
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Column phase failed: {e}")
-
-    return {
-        "status": "success",
-        "message": "Bulk upload complete (tables first, then columns; text then embedding per doc).",
-        "counts": {
-            "table_config": table_cfg_ct,
-            "table_context": table_ctx_ct,
-            "column_config": col_cfg_ct,
-            "column_context": col_ctx_ct
-        }
-    }
