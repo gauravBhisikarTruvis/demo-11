@@ -1,42 +1,37 @@
-from psycopg2.extras import Json
+def insert_table_metadata(record: dict):
+    import json
+    from database.db_connector import GoogleCloudSqlUtility
 
-def insert_table_metadata(self, record: dict):
+    # 1) derive keys/values
+    table_name_val = record.get("table_name") or record.get("table_name_details")
+    if not table_name_val:
+        raise ValueError("table_name/table_name_details is required")
 
-    table_name_val = record.get("table_name") or record.get("table_name_details") or ""
-    id_key = (
-        record.get("data_source_id", "") + "~" +
-        record.get("data_namespace", "") + "~" +
-        table_name_val
-    )
+    id_key = f'{record["data_source_id"]}~{record.get("data_namespace","")}~{table_name_val}'
 
-    # map basic fields
-    data_source_id   = record.get("data_source_id", "")
-    data_namespace   = record.get("data_namespace", "")
-    display_name     = record.get("display_name", "")
-    description      = record.get("description", "")
+    # arrays (TEXT[])
+    filter_columns         = record.get("filter_columns", [])
+    aggregate_columns      = record.get("aggregate_columns", [])
+    sort_columns           = record.get("sort_columns", [])
+    key_columns            = record.get("key_columns", [])
+    related_business_terms = record.get("related_business_terms", [])
+    tags                   = record.get("tags", [])
 
-    # TEXT[] fields must be Python lists
-    filter_columns        = record.get("filter_columns", [])
-    aggregate_columns     = record.get("aggregate_columns", [])
-    sort_columns          = record.get("sort_columns", [])
-    key_columns           = record.get("key_columns", [])
-    related_business      = record.get("related_business_terms", [])
-    tags                  = record.get("tags", [])
+    # JSONB
+    sample_usage = json.dumps(record.get("sample_usage", []))
+    join_tables  = json.dumps(record.get("join_tables", []))
 
-    # JSONB fields must use Json(...)
-    join_tables           = Json(record.get("join_tables", []))
-    sample_usage          = Json(record.get("sample_usage", []))
-
+    # 2) insert / upsert
     sql_insert = """
-        INSERT INTO table_config (
+        INSERT INTO public.table_config (
             id_key, data_source_id, table_name, display_name, data_namespace, description,
             filter_columns, aggregate_columns, sort_columns, key_columns,
-            join_tables, related_business_terms, sample_usage, tags
+            related_business_terms, sample_usage, tags, join_tables
         )
         VALUES (
             %s, %s, %s, %s, %s, %s,
             %s, %s, %s, %s,
-            %s, %s, %s, %s
+            %s, %s::jsonb, %s, %s::jsonb
         )
         ON CONFLICT (id_key) DO UPDATE SET
             data_source_id = EXCLUDED.data_source_id,
@@ -48,27 +43,29 @@ def insert_table_metadata(self, record: dict):
             aggregate_columns = EXCLUDED.aggregate_columns,
             sort_columns   = EXCLUDED.sort_columns,
             key_columns    = EXCLUDED.key_columns,
-            join_tables    = EXCLUDED.join_tables,
             related_business_terms = EXCLUDED.related_business_terms,
             sample_usage   = EXCLUDED.sample_usage,
-            tags           = EXCLUDED.tags;
+            tags           = EXCLUDED.tags,
+            join_tables    = EXCLUDED.join_tables;
     """
 
     conn = None
     try:
-        db = GoogleCloudSqlUtility(self.market)
-        conn = db.get_db_connection()
+        db_util = GoogleCloudSqlUtility(<your_market_or_env_here>)  # same as elsewhere
+        conn = db_util.get_db_connection()
         cur = conn.cursor()
-
-        cur.execute(sql_insert, (
-            id_key, data_source_id, table_name_val, display_name, data_namespace, description,
-            filter_columns, aggregate_columns, sort_columns, key_columns,
-            join_tables, related_business, sample_usage, tags
-        ))
-
+        cur.execute(
+            sql_insert,
+            (
+                id_key, record["data_source_id"], table_name_val, record.get("display_name",""),
+                record.get("data_namespace",""), record.get("description",""),
+                filter_columns, aggregate_columns, sort_columns, key_columns,
+                related_business_terms, sample_usage, tags, join_tables
+            )
+        )
         conn.commit()
     except Exception as e:
-        raise Exception(f"[insert_table_metadata] failed: {e}")
+        if conn: conn.rollback()
+        raise
     finally:
-        if conn:
-            conn.close()
+        if conn: conn.close()
