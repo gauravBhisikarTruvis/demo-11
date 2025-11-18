@@ -317,3 +317,77 @@ const fetchTableMetaData = async () => {
   }
 };
 
+_-----------
+
+
+def update_table_metadata(payload: TableUpdateRequest):
+    data_source = payload.market
+    data_namespace = payload.data_namespace
+    id_key = payload.id_key
+    if not payload.obj:
+        raise HTTPException(status_code=400, detail="'obj' must contain at least one field")
+    db_util = GoogleCloudSqlUtility(data_source)
+    conn = None
+    try:
+        conn = db_util.get_db_connection()
+        if conn is None:
+            raise RuntimeError("DB connection is None (check credentials/market)")
+        set_parts = []
+        params = []
+        for col, val in payload.obj.items():
+            col_quoted = f'"{col}"'
+            if isinstance(val, (list, dict)):
+                set_parts.append(f"{col_quoted} = %s::jsonb")
+                params.append(json.dumps(val, ensure_ascii=False))
+            else:
+                set_parts.append(f"{col_quoted} = %s")
+                params.append(val)
+        set_parts.append("updated_at = NOW()")
+        sql_query = f"""
+UPDATE public.table_config
+SET {', '.join(set_parts)}
+WHERE id_key = %s
+RETURNING *;
+"""
+        params.append(id_key)
+        cur = conn.cursor()
+        cur.execute(sql_query, params)
+        rows = cur.fetchall()
+        if not rows:
+            raise HTTPException(status_code=404, detail="No matching row to update")
+        cols = [d[0] for d in cur.description]
+        updated_rows = [dict(zip(cols, r)) for r in rows]
+        conn.commit()
+        raw_parts = []
+        for k, v in payload.obj.items():
+            if isinstance(v, (list, dict)):
+                raw_parts.append(f"{k} = '{json.dumps(v, ensure_ascii=False)}'")
+            else:
+                raw_parts.append(f"{k} = {v!r}")
+        raw_text = "\n".join(raw_parts)
+        data_namespace = payload.obj.get("data_namespace", "")
+        gemini_em = VertexAIEmbedding()
+        embedding = gemini_em.create_gemini_embeddings(raw_text)
+        embedding = [float(x) for x in embedding]
+        emb_literal = "[" + ",".join(map(str, embedding)) + "]"
+        vector_sql = f"""
+INSERT INTO public.table_context (id_key, embedding, raw_text)
+VALUES (%s, %s::vector, %s)
+ON CONFLICT (id_key) DO UPDATE
+SET embedding = EXCLUDED.embedding,
+    raw_text = EXCLUDED.raw_text;
+"""
+        cur.execute(vector_sql, (id_key, emb_literal, raw_text))
+        conn.commit()
+        return {"message": "update complete", "updated_rows": updated_rows}
+    except HTTPException:
+        raise
+    except Exception:
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if conn:
+            conn.close()
+
+
