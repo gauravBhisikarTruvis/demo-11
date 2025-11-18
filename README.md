@@ -319,10 +319,8 @@ const fetchTableMetaData = async () => {
 
 _-----------
 
-
 def update_table_metadata(payload: TableUpdateRequest):
     data_source = payload.market
-    data_namespace = payload.data_namespace
     id_key = payload.id_key
     if not payload.obj:
         raise HTTPException(status_code=400, detail="'obj' must contain at least one field")
@@ -331,14 +329,31 @@ def update_table_metadata(payload: TableUpdateRequest):
     try:
         conn = db_util.get_db_connection()
         if conn is None:
-            raise RuntimeError("DB connection is None (check credentials/market)")
+            raise RuntimeError("DB connection is None")
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT column_name, data_type, udt_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'table_config';
+            """
+        )
+        col_info = {row[0]: {"data_type": row[1], "udt_name": row[2]} for row in cur.fetchall()}
         set_parts = []
         params = []
         for col, val in payload.obj.items():
             col_quoted = f'"{col}"'
-            if isinstance(val, (list, dict)):
+            info = col_info.get(col, {})
+            udt = info.get("udt_name", "").lower()
+            dtype = info.get("data_type", "").lower()
+            if udt in ("jsonb", "json") or dtype in ("json", "jsonb"):
                 set_parts.append(f"{col_quoted} = %s::jsonb")
                 params.append(json.dumps(val, ensure_ascii=False))
+            elif udt.startswith("_"):  # postgres array types have udt_name starting with '_'
+                # cast to the element type array; common case text => _text
+                elem_type = udt[1:]
+                set_parts.append(f"{col_quoted} = %s::{elem_type}[]")
+                params.append(val)
             else:
                 set_parts.append(f"{col_quoted} = %s")
                 params.append(val)
@@ -350,7 +365,6 @@ WHERE id_key = %s
 RETURNING *;
 """
         params.append(id_key)
-        cur = conn.cursor()
         cur.execute(sql_query, params)
         rows = cur.fetchall()
         if not rows:
@@ -365,7 +379,6 @@ RETURNING *;
             else:
                 raw_parts.append(f"{k} = {v!r}")
         raw_text = "\n".join(raw_parts)
-        data_namespace = payload.obj.get("data_namespace", "")
         gemini_em = VertexAIEmbedding()
         embedding = gemini_em.create_gemini_embeddings(raw_text)
         embedding = [float(x) for x in embedding]
@@ -389,5 +402,3 @@ SET embedding = EXCLUDED.embedding,
     finally:
         if conn:
             conn.close()
-
-
