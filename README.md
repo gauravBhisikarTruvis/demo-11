@@ -216,3 +216,104 @@ const saveMetadataToServer = async () => {
 
 
 sample_usage: JSON.stringify(sample_usage)
+
+
+
+_---------------
+
+
+
+
+const fetchTableMetaData = async () => {
+  try {
+    const response = await makeApiRequest('/get-table-metadata', {
+      body: JSON.stringify({
+        market: props.selectedProject,
+        table: selectedTable,
+      }),
+    });
+
+    // If metadata doesn't exist, backend returns 404 — show an empty shape and return
+    if (!response) {
+      throw new Error('No response from metadata service');
+    }
+
+    if (response.status === 404) {
+      const blankData = {
+        id_key: null,
+        description: '',
+        tags: [],
+        filteredColumns: [],
+        aggregateColumns: [],
+        sortedColumns: [],
+        keyColumns: [],
+        sampleQueries: [], // UI friendly field
+        // keep shape consistent with setInitialData usage
+      };
+      console.log('Table metadata not found - returning blankData', blankData);
+      setInitialData(blankData);
+      return; // EARLY RETURN
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    // parse JSON
+    const data = await response.json();
+
+    // backend might return { tables: [...] } or just a table object — normalize
+    const result = Array.isArray(data.tables) && data.tables.length > 0
+      ? data.tables[0]
+      : (data.tables || data); // if data.tables is object or data itself is table
+
+    console.log('Loaded raw metadata result:', result);
+
+    // Normalize sample_usage: backend could send array or JSON-string or null
+    let sampleUsageRaw = result.sample_usage ?? result.sampleUsage ?? [];
+
+    if (typeof sampleUsageRaw === 'string' && sampleUsageRaw.trim().length) {
+      try {
+        sampleUsageRaw = JSON.parse(sampleUsageRaw);
+      } catch (e) {
+        console.warn('sample_usage is a string but failed to parse JSON, using empty array', e);
+        sampleUsageRaw = [];
+      }
+    }
+
+    if (!Array.isArray(sampleUsageRaw)) {
+      // fallback to empty array if unexpected shape
+      sampleUsageRaw = [];
+    }
+
+    // convert to UI friendly structure
+    const loadedSampleUsage = sampleUsageRaw.map((item, idx) => ({
+      id: item.id ?? `s-${idx}`,      // keep a unique id for UI operations
+      query: item.sql ?? item.query ?? '',   // some backends use 'sql' field
+      description: item.description ?? '',
+      tempQuery: item.sql ?? item.query ?? '',
+      tempDescription: item.description ?? '',
+      isEditing: false,
+    }));
+
+    const loadedData = {
+      id_key: result.id_key ?? null,
+      description: result.description ?? '',
+      tags: result.tags ?? [],
+      filteredColumns: result.filter_columns ?? result.filteredColumns ?? [],
+      aggregateColumns: result.aggregate_columns ?? result.aggregateColumns ?? [],
+      sortedColumns: result.sort_columns ?? result.sortedColumns ?? [],
+      keyColumns: result.key_columns ?? result.keyColumns ?? [],
+      sampleQueries: loadedSampleUsage, // matches UI state
+      // copy any other fields you need...
+    };
+
+    console.log('Loaded while get meta data ->', loadedData);
+    setInitialData(loadedData);
+  } catch (error) {
+    console.error('Error fetching table metadata:', error);
+    setError(`Failed to load metadata for ${selectedTable}`);
+    setInitialData(null);
+  }
+};
+
