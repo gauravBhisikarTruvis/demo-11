@@ -62,3 +62,62 @@ const handleSave = async () => {
     setTimeout(() => setSuccessMessage(''), 5000);
   }
 };
+
+_-----------
+
+
+const DATA_TYPES = [
+  { value: '', label: 'Select data type' },
+  { value: 'text', label: 'text' },
+  { value: 'varchar', label: 'varchar' },
+  { value: 'integer', label: 'integer' },
+  { value: 'bigint', label: 'bigint' },
+  { value: 'smallint', label: 'smallint' },
+  { value: 'boolean', label: 'boolean' },
+  { value: 'numeric', label: 'numeric' },
+  { value: 'real', label: 'real' },
+  { value: 'double precision', label: 'double precision' },
+  { value: 'timestamp', label: 'timestamp' },
+  { value: 'date', label: 'date' },
+  { value: 'time', label: 'time' },
+  { value: 'json', label: 'json' },
+  { value: 'jsonb', label: 'jsonb' },
+  { value: 'array', label: 'array' },
+  { value: 'other', label: 'Other (custom)' }
+];
+
+{/* Place this JSX where the input should appear */}
+<div style={{ marginTop: 8 }}>
+  <label htmlFor="data-type-select" style={{ display: 'block', marginBottom: 6 }}>Data Type</label>
+
+  <select
+    id="data-type-select"
+    value={dataType ?? ''}
+    onChange={(e) => setDataType(e.target.value)}
+    style={{ padding: '8px 10px', minWidth: 220 }}
+  >
+    {DATA_TYPES.map(dt => (
+      <option key={dt.value} value={dt.value}>{dt.label}</option>
+    ))}
+  </select>
+
+  {/* show an input if user chooses "other" so they can type any custom type */}
+  {dataType === 'other' && (
+    <div style={{ marginTop: 8 }}>
+      <input
+        type="text"
+        placeholder="Enter custom data type (e.g. character varying(255))"
+        value={customDataType || ''}
+        onChange={(e) => {
+          setCustomDataType(e.target.value);
+          setDataType(e.target.value); // keep the actual dataType state in sync
+        }}
+        style={{ padding: '8px 10px', minWidth: 220 }}
+      />
+    </div>
+  )}
+</div>
+
+
+const [customDataType, setCustomDataType] = useState('');
+
