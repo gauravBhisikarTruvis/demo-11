@@ -1,3 +1,7 @@
+const [dataType, setDataType] = useState('');
+const [customDataType, setCustomDataType] = useState('');
+
+
 useEffect(() => {
   if (!initialData) return;
 
