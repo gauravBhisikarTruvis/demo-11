@@ -12,3 +12,24 @@ const handleSaveQuery = (id) => {
     )
   );
 };
+
+
+
+const handleAddNewQuery = () => {
+  if (!newQueryValue.trim()) return;
+
+  setSampleUsage(prev => [
+    ...prev,
+    {
+      id: `new-${Date.now()}`,
+      sql: newQueryValue.trim(),
+      description: newDescriptionValue.trim(),
+      tempQuery: newQueryValue.trim(),
+      tempDescription: newDescriptionValue.trim(),
+      isEditing: false
+    }
+  ]);
+
+  setNewQueryValue("");
+  setNewDescriptionValue("");
+};
