@@ -1,80 +1,75 @@
-def insert_table_context(record: Dict[str, Any]) -> None:
+def insert_table_context(record: dict, cur) -> None:
     """
-    Build a readable raw_text for the table record, compute embedding,
-    and upsert into table_context (id_key, embedding, raw_text).
+    Upsert a record into table_context (id_key, embedding, raw_text).
+    Expects a psycopg2 cursor `cur` that is already connected.
+    Caller is responsible for commit/rollback and closing connection.
+    """
+    if cur is None:
+        raise RuntimeError("Cursor (cur) is required and must be a live DB cursor.")
 
-    Raises RuntimeError on DB connection problems; raises Exception on SQL/embedding failures.
-    """
-    # required fields / safe lookups
+    # basic fields
     table_name_val = record.get("table_name") or record.get("table_name_details") or ""
-    data_source = record.get("data_source_id", "")
+    data_source = record.get("data_source_id") or ""
     data_ns = record.get("data_namespace", "")
 
+    # id key (same pattern as table/column id keys you use elsewhere)
     id_key = f"{data_source}~{data_ns}~{table_name_val}"
 
-    # Build readable raw_text — ensure all parts are strings before join
-    parts = []
-    parts.append(f"table: {table_name_val}")
-    parts.append(f"display_name: {record.get('display_name','')}")
-    parts.append(f"description: {record.get('description','')}")
-    parts.append(f"tags: { _safe_join_list_field(record.get('tags', [])) }")
-    parts.append(f"filter_columns: { _safe_join_list_field(record.get('filter_columns', [])) }")
-    parts.append(f"aggregate_columns: { _safe_join_list_field(record.get('aggregate_columns', [])) }")
-    parts.append(f"sort_columns: { _safe_join_list_field(record.get('sort_columns', [])) }")
-    parts.append(f"key_columns: { _safe_join_list_field(record.get('key_columns', [])) }")
-    parts.append(f"related_business_terms: { _safe_join_list_field(record.get('related_business_terms', [])) }")
+    # Helper to safely join lists (returns string)
+    def join_list(maybe_list):
+        if maybe_list is None:
+            return ""
+        if isinstance(maybe_list, (list, tuple)):
+            return ", ".join(str(x) for x in maybe_list)
+        # fallback if it's a single string or other type
+        return str(maybe_list)
 
-    # sample usage might be a list of objects -> json-dump it
+    # Build raw_text as plain strings joined by newline
+    raw_parts = [
+        f"table: {table_name_val}",
+        f"display_name: {record.get('display_name','')}",
+        f"description: {record.get('description','')}",
+        f"tags: {join_list(record.get('tags', []))}",
+        f"filter_columns: {join_list(record.get('filter_columns', []))}",
+        f"aggregate_columns: {join_list(record.get('aggregate_columns', []))}",
+        f"sort_columns: {join_list(record.get('sort_columns', []))}",
+        f"key_columns: {join_list(record.get('key_columns', []))}",
+        f"join_tables: {join_list(record.get('join_tables', []))}",
+        f"related_business_terms: {join_list(record.get('related_business_terms', []))}"
+    ]
+    # ensure everything is string and no nested lists remain
+    raw_parts = [str(p) for p in raw_parts]
+    raw_text = "\n".join(raw_parts)
+
+    # include sample_usage JSON string (if present) appended so embedding has examples too
     try:
         sample_usage_str = json.dumps(record.get("sample_usage", []), ensure_ascii=False)
     except Exception:
         sample_usage_str = str(record.get("sample_usage", ""))
+    if sample_usage_str:
+        raw_text = raw_text + "\n" + f"sample_usage: {sample_usage_str}"
 
-    parts.append(f"sample_usage: {sample_usage_str}")
-
-    raw_text = "\n".join(part for part in parts if part is not None)
-
-    # --- embedding ---
-    # Replace VertexAIEmbedding with your actual embedding wrapper
-    gemini_em = VertexAIEmbedding(MARKET)   # adjust constructor as you have it
-    embedding_raw = gemini_em.create_gemini_embeddings(raw_text)
-
-    # Ensure embedding is an iterable of numbers and convert to floats
+    # generate embedding (use your VertexAIEmbedding wrapper)
     try:
+        gemini_em = VertexAIEmbedding("hsbc-12432649-c48nlpuk-dev")   # use market key you use elsewhere
+        embedding_raw = gemini_em.create_gemini_embeddings(raw_text)
+        # normalize to plain Python floats list
         embedding = [float(x) for x in embedding_raw]
     except Exception as e:
-        raise Exception(f"Embedding returned non-numeric values: {e}")
+        raise Exception(f"Failed to generate embedding: {e}")
 
-    # Upsert into DB
-    db_util = GoogleCloudSqlUtility(MARKET)   # your DB util
-    conn = db_util.get_db_connection()
-    if conn is None:
-        raise RuntimeError("DB connection is None (check credentials/market).")
+    # Upsert into table_context (parameterized)
+    upsert_sql = f"""
+    INSERT INTO public.table_context (id_key, embedding, raw_text)
+    VALUES (%s, %s, %s)
+    ON CONFLICT (id_key) DO UPDATE
+      SET embedding = EXCLUDED.embedding,
+          raw_text = EXCLUDED.raw_text;
+    """
 
-    cur = None
     try:
-        cur = conn.cursor()
-        upsert_sql = """
-        INSERT INTO public.table_context (id_key, embedding, raw_text)
-        VALUES (%s, %s, %s)
-        ON CONFLICT (id_key) DO UPDATE
-          SET embedding = EXCLUDED.embedding,
-              raw_text  = EXCLUDED.raw_text;
-        """
         cur.execute(upsert_sql, (id_key, embedding, raw_text))
-        conn.commit()
+        # do NOT commit here; caller should commit/rollback so batch work can be atomic if required
     except Exception as e:
-        if conn:
-            conn.rollback()
-        raise Exception(f"[insert_table_context] failed: {e}")
-    finally:
-        if cur:
-            try:
-                cur.close()
-            except Exception:
-                pass
-        if conn:
-            try:
-                conn.close()
-            except Exception:
-                pass
+        # raise with a helpful message for debugging
+        raise Exception(f"[insert_table_context] failed to execute upsert for id_key={id_key}: {e}")
