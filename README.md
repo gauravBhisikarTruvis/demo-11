@@ -1,12 +1,23 @@
-"devDependencies": {
-  "@eslint/js": "^9.7.0",
-  "@types/react": "^19.0.2",
-  "@types/react-dom": "^19.0.0",
-  "@vitejs/plugin-react": "^5.0.0",
-  "eslint": "^9.7.0",
-  "eslint-plugin-react": "^7.35.0",
-  "eslint-plugin-react-hooks": "^5.0.0",
-  "eslint-plugin-react-refresh": "^0.4.9",
-  "globals": "^15.8.0",
-  "vite": "^5.3.4"
-}
+# file: bq_impersonate_example.py
+from google.auth import default
+from google.auth.impersonated_credentials import ImpersonatedCredentials
+from google.cloud import bigquery
+
+# get source credentials (these are the VM's SA1 credentials from metadata)
+source_credentials, _ = default()
+
+target_service_account = "sa2@project2.iam.gserviceaccount.com"
+
+impersonated_creds = ImpersonatedCredentials(
+    source_credentials=source_credentials,
+    target_principal=target_service_account,
+    target_scopes=["https://www.googleapis.com/auth/cloud-platform"],
+    lifetime=3600,
+)
+
+# create BigQuery client using impersonated credentials and targeting project2
+client = bigquery.Client(project="project2", credentials=impersonated_creds)
+
+query = "SELECT CURRENT_TIMESTAMP() as now"
+for row in client.query(query).result():
+    print(row)
