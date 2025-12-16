@@ -7,7 +7,7 @@ from datetime import datetime
 
 # LangGraph and LangChain imports
 from langgraph.graph import StateGraph, END
-from langchain_openai import ChatOpenAI
+from langchain_google_vertexai import ChatVertexAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from google.cloud import bigquery
@@ -326,16 +326,18 @@ def node_ai_rewrite(state: OptimizerState) -> OptimizerState:
     """
     logger.info("--- Step 5: AI Rewrite ---")
     
-    # 1. Setup OpenAI Client
-    api_key = state['config'].get('LLM', 'api_key')
-    model_name = state['config'].get('LLM', 'model', fallback='gpt-4o')
-    base_url = state['config'].get('LLM', 'base_url', fallback=None)
+    # 1. Setup Gemini Client (VertexAI)
+    # Using VertexAI usually relies on ADC (Application Default Credentials)
+    # But we can look for project_id or location if needed in config
+    project_id = state['config'].get('BigQuery', 'project_id', fallback=None)
+    location = state['config'].get('BigQuery', 'location', fallback=None) 
+    model_name = state['config'].get('LLM', 'model', fallback='gemini-pro')
     
-    llm = ChatOpenAI(
-        api_key=api_key, 
-        model=model_name, 
-        base_url=base_url,
-        temperature=0.0 # Be deterministic
+    llm = ChatVertexAI(
+        project=project_id,
+        location=location,
+        model_name=model_name,
+        temperature=0.0
     )
     
     # 2. Construct Prompt
