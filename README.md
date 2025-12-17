@@ -1,12 +1,1 @@
-minimal_state = {
-    "original_query": "SELECT COUNT(*) FROM my_project.my_dataset.my_table",
-    "config": {},
-    "bq_client": None,
-    "tables_involved": ["my_project.my_dataset.my_table"],
-    "table_metadata": {},
-    "analysis_results": {},
-    "candidates": [],
-    "best_candidate": None,
-    "recursion_count": 0,
-    "final_output": {}
-}
+SELECT events.customer_portfolio AS portfolio_id, events.payment_type AS method, cust.customer_segment AS segment, cust.primary_region AS region, COUNT(events.transaction_id) AS total_transactions, SUM(events.amount) AS total_volume FROM `AMH_FZ_FDR_DEV_SIT.event_store` AS events JOIN `AMH_FZ_FDR_DEV_SIT.customer_profiles` AS cust ON events.customer_id = cust.id WHERE events.transaction_date >= '2024-01-01' GROUP BY portfolio_id, method, segment, region
