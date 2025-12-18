@@ -1,66 +1,122 @@
-import json
+def node_semantic_validation_ai(state: OptimizerState) -> OptimizerState:
+    """
+    Node: AI Semantic Validation
 
-# ... (previous logic to get tables_column_mapping) ...
+    Uses YOUR GeminiCode(prompt).optimize(prompt) method to determine
+    whether SQL rewrite candidates preserve semantic meaning.
 
-# 1. SETUP: Define Project Prefix & Construct Names
-PROJECT_PREFIX = "hsbc-12010598-fdrasp-dev" 
-qualified_tables = []
+    Produces & updates:
+        project, is_valid, semantic_score, confidence_score, reasoning
+    """
 
-for table_key in tables_column_mapping.keys():
-    # Defensive check: Only add prefix if it's missing
-    if not table_key.startswith(PROJECT_PREFIX):
-        full_name = f"{PROJECT_PREFIX}.{table_key}"
-    else:
-        full_name = table_key
-    qualified_tables.append(full_name)
+    logger.info("--- Step 9: Semantic Validation (AI) ---")
 
-# 2. BUILD QUERY
-formatted_table_list = ", ".join([f"'{t}'" for t in qualified_tables])
+    original_sql = state.get("original_query", "").strip()
+    candidates   = state.get("candidates", [])
+    project      = state.get("config", {}).get("project", "unknown")
 
-meta_query = f"""
-    SELECT table_name, metadata, row_count, size_bytes
-    FROM `{metadata_dataset}.{metadata_table_name}`
-    WHERE table_name IN ({formatted_table_list})
+    if not original_sql:
+        logger.warning("Original SQL missing → cannot validate semantics.")
+        return state
+
+    if not candidates:
+        logger.info("No rewrite candidates → skipping semantic validation.")
+        return state
+
+    for cand in candidates:
+
+        rewritten = cand.get("sql", "").strip()
+
+        # Always update project:
+        cand["project"] = project
+
+        # Reject empty SQL
+        if not rewritten:
+            cand.update({
+                "is_valid": False,
+                "semantic_score": 0.0,
+                "confidence_score": 0.0,
+                "reasoning": "Candidate SQL empty."
+            })
+            continue
+
+        # Auto pass identical SQL
+        if rewritten == original_sql:
+            cand.update({
+                "is_valid": True,
+                "semantic_score": 1.0,
+                "confidence_score": 1.0,
+                "reasoning": "SQL identical to original → automatically correct."
+            })
+            continue
+
+        ###############################################################
+        # Build the validation prompt for GeminiCode
+        ###############################################################
+        prompt = f"""
+You are a BigQuery SQL Semantic Validator.
+
+Determine if rewritten SQL produces the same final meaning
+as the original SQL.
+
+Original SQL:
+```sql
+{original_sql}
+
+
+
+Generated SQL:
+{rewritten}
+
+Return STRICT JSON ONLY:
+
+{{
+"is_valid": true/false,
+"semantic_score": number between 0 and 1,
+"reason": string
+}}
 """
 
-logger.info(f"Executing Meta Query: {meta_query}")
 
-# 3. EXECUTE QUERY & LOOP THROUGH RESULTS
 try:
-    # Use the client stored in your state
-    query_job = state['bq_client'].query(meta_query)
-    results = query_job.result()
-    
-    llm_context_list = []
+        ###########################################################
+        # Run YOUR Gemini implementation
+        ###########################################################
+        gemini = GeminiCode(prompt)
+        out    = gemini.optimize(prompt)
 
-    for row in results:
-        # Parse the 'metadata' string column into a real Python dictionary
-        # This prevents "double-string-encoding" which confuses LLMs
-        try:
-            # The DB column 'metadata' is a string like '{"schema": ...}'
-            schema_info = json.loads(row.metadata)
-        except (json.JSONDecodeError, TypeError):
-            # Fallback: keep as string if parsing fails
-            schema_info = row.metadata
+        ###########################################################
+        # Normalize returned output from Gemini
+        ###########################################################
+        if isinstance(out, dict):
+            structured = out
+        else:
+            raw = str(out).strip()
+            cleaned = (
+                raw.replace("```json", "")
+                   .replace("```", "")
+                   .strip()
+            )
+            structured = json.loads(cleaned)
 
-        # Build the clean dictionary for this table
-        table_context = {
-            "table_name": row.table_name,
-            "row_count": row.row_count,
-            "size_bytes": row.size_bytes,
-            "schema_info": schema_info 
-        }
-        llm_context_list.append(table_context)
+        ###########################################################
+        # Update candidate object to your typed structure
+        ###########################################################
+        cand["is_valid"]         = bool(structured.get("is_valid", False))
+        cand["semantic_score"]   = float(structured.get("semantic_score", 0.0))
+        cand["confidence_score"] = float(structured.get("semantic_score", 0.0))
+        cand["reasoning"]        = structured.get("reason", "")
 
-    # 4. FINAL JSON OUTPUT
-    # This string is what you pass to the LLM
-    final_json_context = json.dumps(llm_context_list, indent=2)
-    
-    # Store in state for the next node
-    state['table_metadata_context'] = final_json_context
-    print("Final JSON Context:\n", final_json_context)
+    except Exception as e:
+        ###########################################################
+        # Safe fallback
+        ###########################################################
+        logger.error(f"Semantic validation failed: {e}")
+        cand.update({
+            "is_valid": False,
+            "semantic_score": 0.0,
+            "confidence_score": 0.0,
+            "reasoning": f"Validation error: {e}"
+        })
 
-except Exception as e:
-    logger.error(f"Failed to query bq_metadata: {str(e)}")
-    # Handle error or set empty context
-    state['table_metadata_context'] = "[]"
+return state
