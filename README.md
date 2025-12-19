@@ -1,1 +1,1 @@
-gcloud compute scp gaurav_bhisikar_hsbc_co_in@query-genie-opti-dev:/opt/app/QG-backend/venv2/lib/python3.12/site-packages/src/llm/optimize.py "C:\Users\45231532\Downloads\query-genie-text-to-sql\optmizer_laggraph\"
+gcloud compute scp gaurav_bhisikar_hsbc_co_in@query-genie-opti-dev:/opt/app/QG-backend/venv2/lib/python3.12/site-packages/src/llm/optimize.py "C:\Users\45231532\Downloads\query-genie-text-to-sql\optmizer_laggraph\" --tunnel-through-iap --project=hsbc-12432649-c48nlpuk-dev --zone=europe-west2-a
