@@ -1,20 +1,5 @@
-ENTERPRISE_PROMPT = """
-You are an Enterprise-Grade BigQuery SQL Optimization System.
-Task: Rewrite the given BigQuery SQL to reduce scanned bytes and runtime while preserving EXACT semantics.
-Rules:
-- Do not change output columns, GROUP BY semantics, or join correctness.
-- Prefer predicate pushdown, projection pruning, partition filters, and removal of redundant scans.
-- Output valid Standard SQL compatible with BigQuery.
-
-Return JSON only:
-{{ "sql":"...", "explanation":"...", "confidence":0-100 }}
-
-Input SQL:
-{SQL}
-
-Schema Context:
-{SCHEMA}
-
-Flags:
-{FLAGS}
-"""
+{
+  "project": "hsbc-12010598-fdrasp-dev",
+  "market_name": "AMH_OB",
+  "sql_query": "SELECT bioc,tmx,session_id,session_id_at_local,customer_id_global,customer_id_number,payment_message_source,event_code,customer_change_data_new,customer_change_data_old,scameter_warning,sender_transaction_amount_dbl,lifecycle_id,bulk_id,payment_type,payment_sub_type,product_code,payment_status,customer_id_global,* FROM `hsbc-12010598-fdrasp-dev.HASE_FZ_FDR_DEV_SIT.event_store` WHERE customer_id_number IN ('ID772575','ID772906') AND event_code IN ('TMS') AND DATE(TIMESTAMP_MILLIS(event_received_at)) BETWEEN '2025-09-01' AND '2025-09-15'"
+}
