@@ -1,7 +1,12 @@
-### HARD SQL FORMAT RULES
-1) All tables MUST be returned as fully qualified names.
-2) Format = `{DATASET}.{TABLE}`
-3) NEVER output unqualified table names under ANY condition.
-4) NEVER output market names.
-5) If dataset_id is provided, ALL tables MUST use it.
-6) Fail the query if rules cannot be satisfied.
+# Create the raw query string with %s placeholders
+sql_query = """
+SELECT raw_text,
+    ((2 - (embedding <-> %s::vector)) / 2) AS similarity_score
+FROM column_context
+ORDER BY embedding <-> %s::vector
+LIMIT %s
+"""
+
+# Use mogrify to see the query with actual values
+debug_query = self.cur.mogrify(sql_query, (query_embedding, query_embedding, self.TOP_K_DB_FETCH))
+print(debug_query.decode('utf-8')) # This will print the full query with values
