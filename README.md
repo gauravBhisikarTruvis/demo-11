@@ -1,10 +1,7 @@
-- CRITICAL RULE: All table names MUST use this format:
-    `{DATASET}.{TABLE_NAME}`
-- Never use `market_name` or project_id in the SQL.
-- Allowed prefixes example:
-    AMH_FZ_FDR_DEV_SIT.event_store
-- Forbidden prefixes:
-    AMH_OB.event_store
-    event_store
-- If TABLE metadata contains: "data_namespace": "AMH_FZ_FDR_DEV_SIT"
-  then SQL must reference: AMH_FZ_FDR_DEV_SIT.<table>
+### HARD SQL FORMAT RULES
+1) All tables MUST be returned as fully qualified names.
+2) Format = `{DATASET}.{TABLE}`
+3) NEVER output unqualified table names under ANY condition.
+4) NEVER output market names.
+5) If dataset_id is provided, ALL tables MUST use it.
+6) Fail the query if rules cannot be satisfied.
