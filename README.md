@@ -1,20 +1,13 @@
-def parse_context_text(self, raw_text: str) -> list[dict]:
-    records = []
+    for raw_text, score in table_contexts:
+        parsed = self.parse_context_text(raw_text)
 
-    blocks = [b.strip() for b in raw_text.split("\n") if b.strip()]
-
-    for block in blocks:
-        record = {}
-
-        for line in block.split("|"):
-            if "=" in line:
-                key, value = line.split("=", 1)
-                record[key.strip()] = value.strip()
-            elif ":" in line:
-                key, value = line.split(":", 1)
-                record[key.strip()] = value.strip()
-
-        if record:
-            records.append(record)
-
-    return records
+        for item in parsed:
+            tables.append({
+                "project": item.get("project"),
+                "dataset": item.get("dataset"),
+                "table": item.get("table"),
+                "display_name": item.get("display_name"),
+                "description": item.get("description"),
+                "tags": item.get("tags"),
+                "similarity_score": score
+            })
