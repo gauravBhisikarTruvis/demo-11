@@ -1,8 +1,1 @@
-def flatten(self, items):
-    flat = []
-    for item in items:
-        if isinstance(item, list):
-            flat.extend(self.flatten(item))
-        else:
-            flat.append(item)
-    return flat
+gcloud compute scp gaurav_bhisikar_hsbc_co_in@query-genie-dev:/opt/app/new_build/venv3/lib/python/src/llm/prompt_templte.py . --zone=europe-west2-a
