@@ -1,13 +1,17 @@
-    for raw_text, score in table_contexts:
-        parsed = self.parse_context_text(raw_text)
+import ast
 
-        for item in parsed:
-            tables.append({
-                "project": item.get("project"),
-                "dataset": item.get("dataset"),
-                "table": item.get("table"),
-                "display_name": item.get("display_name"),
-                "description": item.get("description"),
-                "tags": item.get("tags"),
-                "similarity_score": score
-            })
+def normalize_parsed_items(parsed_items: list[str]) -> list[dict]:
+    normalized = []
+
+    for item in parsed_items:
+        if isinstance(item, dict):
+            normalized.append(item)
+        elif isinstance(item, str):
+            try:
+                normalized.append(ast.literal_eval(item))
+            except Exception as e:
+                logger.error(f"Failed to parse context item: {item}")
+        else:
+            logger.warning(f"Unknown context item type: {type(item)}")
+
+    return normalized
