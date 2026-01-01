@@ -1,8 +1,6 @@
-sudo chmod o+x /opt
-sudo chmod o+x /opt/app
-sudo chmod o+x /opt/app/retry-test
-sudo chmod o+x /opt/app/retry-test/qg-backend
-sudo chmod o+x /opt/app/retry-test/qg-backend/src
-sudo chmod o+x /opt/app/retry-test/qg-backend/src/api
+sudo chmod -R o+rx /opt/app/retry-test/qg-backend
+sudo find /opt/app/retry-test/qg-backend -type f -exec chmod o+r {} \;
 
-chmod 644 /opt/app/retry-test/qg-backend/src/api/routes.py
+
+sudo -u gaurav_bhisikar_hsbc_co_in \
+  ls /opt/app/retry-test/qg-backend/src/services
