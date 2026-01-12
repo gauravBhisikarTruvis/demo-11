@@ -1,1 +1,1 @@
-grep -c "BEGIN CERTIFICATE" /opt/app/qg-ui/qg-frontend/cert/dev/query-genie-dev*.crt
+curl -v https://10.91.9.189 --connect-timeout 5
