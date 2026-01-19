@@ -65,3 +65,8 @@ H. Agent-friendly meta prompts (very MCP-ready)
 “Discover relevant graph queries and execute those required to fully explain this account’s network.”
 
 “Fetch all data required to explain how this account is connected to other accounts and people.”
+
+
+
+"langgraph-checkpoint>=2.0.0",   # Add helper packages explicitly
+    "langgraph-prebuilt>=1.0.0",
