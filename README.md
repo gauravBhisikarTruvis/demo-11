@@ -67,6 +67,8 @@ H. Agent-friendly meta prompts (very MCP-ready)
 “Fetch all data required to explain how this account is connected to other accounts and people.”
 
 
+# 3. Create a temporary constraints file to force the version of langchain-core
+echo "langchain-core==0.3.72" > constraints.txt
 
-"langgraph-checkpoint>=2.0.0",   # Add helper packages explicitly
-    "langgraph-prebuilt>=1.0.0",
+# 4. Install the packages using the constraints file to bypass the conflict
+pip install langgraph==1.0.6 langchain==0.3.27 . -c constraints.txt
