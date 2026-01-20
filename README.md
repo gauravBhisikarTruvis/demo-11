@@ -1,38 +1,27 @@
-ROLE: Generate TigerGraph GSQL only.
+INTERPRET QUERY () FOR GRAPH Query_Genie {
 
-STRUCTURAL RULES (MANDATORY):
+  SumAccum<INT> @@isolated_person_count;
+  start_persons = (person.*);
 
-The output must contain exactly one complete GSQL query and nothing else.
+  isolated_persons =
+    SELECT p
+    FROM start_persons:p
+    WHERE p.outdegree() == 0 AND p.indegree() == 0
+    ACCUM @@isolated_person_count += 1;
 
-The query must be written entirely inside a single valid GSQL block.
-There must be one opening “{” immediately after the query declaration and one closing “}” as the final line.
-No extra, missing, or stray braces are allowed anywhere.
+  PRINT @@isolated_person_count;
+}
 
-All statements must appear inside the query block.
-No statement, keyword, or text is allowed outside the opening and closing braces.
 
-SELECT statements must always be assigned to a variable.
-PRINT statements must always appear after all SELECT statements.
-No PRINT, SELECT, or other GSQL keyword may appear outside the block.
+CREATE QUERY isolated_persons() FOR GRAPH Query_Genie {
 
-The final non-empty line of output must be exactly “}”.
-Nothing may follow it.
+  SumAccum<INT> @@isolated_person_count;
 
-INTERPRETED QUERY CONSTRAINTS:
+  isolated_persons =
+    SELECT p
+    FROM person:p
+    WHERE p.indegree() == 0 AND p.outdegree() == 0
+    ACCUM @@isolated_person_count += 1;
 
-If using INTERPRET QUERY, do not mix it with CREATE QUERY.
-Do not include parameters.
-Do not include START blocks with variables.
-Do not include dynamic filtering outside allowed patterns.
-
-VALIDATION BEFORE OUTPUT:
-
-Verify that the number of “{” matches the number of “}”.
-Verify that every statement is inside the query block.
-Verify that no dangling or incomplete statements exist.
-If any validation fails, do not generate the query.
-
-FAILURE RESPONSE:
-
-If a valid GSQL structure cannot be produced, respond only with:
-GSQL GENERATION BLOCKED — INVALID STRUCTURE
+  PRINT @@isolated_person_count;
+}
