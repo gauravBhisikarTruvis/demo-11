@@ -3,7 +3,6 @@ Role: You are a senior Python engineer experienced with LangChain and LangGraph 
 Task: Migrate the existing codebase from LangChain 0.3.x + LangGraph 0.2.x to LangChain 1.x + LangGraph 1.x, making the minimum required changes so the application works correctly.
 
 Constraints:
-
 Do NOT refactor logic or architecture.
 
 Only update imports, class locations, and API usage required for compatibility.
