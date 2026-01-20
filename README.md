@@ -67,3 +67,10 @@ H. Agent-friendly meta prompts (very MCP-ready)
 “Fetch all data required to explain how this account is connected to other accounts and people.”
 pip uninstall -y langchain langchain-core langgraph langgraph-prebuilt langgraph-checkpoint
 pip check
+
+
+pip uninstall -y langgraph langgraph-prebuilt langgraph-checkpoint
+pip install \
+  langgraph==0.2.38 \
+  langgraph-prebuilt==0.2.38 \
+  langgraph-checkpoint==0.2.38
