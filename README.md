@@ -1,67 +1,9 @@
-INTERPRET QUERY () FOR GRAPH Query_Genie {
+-- 1. Grant usage on the schema (Fixes the DDL failed error)
+GRANT USAGE ON SCHEMA public TO "query-genie@hsbc-12432649-c48nlpuk-dev.iam";
 
-  SumAccum<INT> @out_edge_count;
-  SumAccum<INT> @in_edge_count;
+-- 2. Grant read access to all current tables (Fixes the project_ids/markets error)
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO "query-genie@hsbc-12432649-c48nlpuk-dev.iam";
 
-  start_persons = {person.*};
-
-  // Calculate outgoing edge count for each person
-  persons_with_out_edges = SELECT p
-    FROM start_persons:p
-      -(HAS_USED:e1)-> device:d1
-    ACCUM p.@out_edge_count += 1;
-
-  persons_with_out_edges = SELECT p
-    FROM start_persons:p
-      -(HAS_IP:e2)-> ipaddress:ip1
-    ACCUM p.@out_edge_count += 1;
-
-  persons_with_out_edges = SELECT p
-    FROM start_persons:p
-      -(HAS_ACCOUNT:e3)-> accountnumber:a1
-    ACCUM p.@out_edge_count += 1;
-
-  persons_with_out_edges = SELECT p
-    FROM start_persons:p
-      -(HAS_PHONE:e4)-> phone:ph1
-    ACCUM p.@out_edge_count += 1;
-
-  persons_with_out_edges = SELECT p
-    FROM start_persons:p
-      -(HAS_EMAIL:e5)-> email:em1
-    ACCUM p.@out_edge_count += 1;
-
-  // Calculate incoming edge count for each person
-  persons_with_in_edges = SELECT p
-    FROM start_persons:p
-      <-(reverse_HAS_USED:e6)- device:d2
-    ACCUM p.@in_edge_count += 1;
-
-  persons_with_in_edges = SELECT p
-    FROM start_persons:p
-      <-(reverse_HAS_IP:e7)- ipaddress:ip2
-    ACCUM p.@in_edge_count += 1;
-
-  persons_with_in_edges = SELECT p
-    FROM start_persons:p
-      <-(reverse_HAS_ACCOUNT:e8)- accountnumber:a2
-    ACCUM p.@in_edge_count += 1;
-
-  persons_with_in_edges = SELECT p
-    FROM start_persons:p
-      <-(reverse_HAS_PHONE:e9)- phone:ph2
-    ACCUM p.@in_edge_count += 1;
-
-  persons_with_in_edges = SELECT p
-    FROM start_persons:p
-      <-(reverse_HAS_EMAIL:e10)- email:em2
-    ACCUM p.@in_edge_count += 1;
-
-  // Filter for persons with no incoming and no outgoing edges
-  isolated_persons = SELECT p
-    FROM start_persons:p
-    WHERE p.@out_edge_count == 0 AND p.@in_edge_count == 0
-    LIMIT 100;
-
-  PRINT isolated_persons;
-}
+-- 3. Ensure future tables also have permissions
+ALTER DEFAULT PRIVILEGES IN SCHEMA public 
+GRANT SELECT ON TABLES TO "query-genie@hsbc-12432649-c48nlpuk-dev.iam";
