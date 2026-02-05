@@ -6,3 +6,10 @@
      `WHERE es.action_alert = TRUE 
       AND TIMESTAMP_MILLIS(es.event_occurred_at) >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 48 HOUR) -- Business Logic
       AND es.updatedTimestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 48 HOUR)` -- MANDATORY Partition Filter
+
+
+
+
+2. PERFORMANCE RULE: Check the "partitioning_info" in the TABLE_CONTEXT.
+   - If a "partition field" is defined (e.g., bq_insert_timestamp), you MUST include it in the WHERE clause.
+   - For relative time queries (e.g., "last 48 hours"), apply the time filter to BOTH the logical date column AND the partition column to enable partition pruning.
