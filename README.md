@@ -1,15 +1,11 @@
-7. **PARTITION PRUNING (MANDATORY & CRITICAL)**: 
-   - You **MUST** check `TABLE_CONTEXT` for `partitioning_info`. If a `partition field` exists (e.g., `updatedTimestamp`, `ingestion_date`), it is STRICTLY REQUIRED to include it in the `WHERE` clause.
-   - **Synchronization Rule**: If the user's request involves a time range (e.g., "last 48 hours") on a business column (like `event_occurred_at`), you MUST apply the corresponding time filter to the **Partition Column** as well.
-   - **Reasoning**: Validating against the partition column is required to minimize BigQuery costs.
-   - **Correct Example**: 
-     `WHERE es.action_alert = TRUE 
-      AND TIMESTAMP_MILLIS(es.event_occurred_at) >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 48 HOUR) -- Business Logic
-      AND es.updatedTimestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 48 HOUR)` -- MANDATORY Partition Filter
+ubject: Project Completion & Next Steps for Offboarding — [Project Name]
 
+Hi [Manager's Name],
 
+I’m pleased to confirm that we have successfully wrapped up the [Project Name]. All final handovers and documentation have already been completed and shared with the team.
 
+Could you please let us know the official offboarding process from here? We want to ensure we follow the correct protocol for closing out our engagement and handling any final administrative clearances.
 
-2. PERFORMANCE RULE: Check the "partitioning_info" in the TABLE_CONTEXT.
-   - If a "partition field" is defined (e.g., bq_insert_timestamp), you MUST include it in the WHERE clause.
-   - For relative time queries (e.g., "last 48 hours"), apply the time filter to BOTH the logical date column AND the partition column to enable partition pruning.
+Looking forward to your guidance on how to proceed.
+
+Best regards,
