@@ -1,4 +1,4 @@
-ubject: Project Completion & Next Steps for Offboarding — [Project Name]
+Project Completion & Next Steps for Offboarding — [Project Name]
 
 Hi [Manager's Name],
 
